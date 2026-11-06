@@ -47,7 +47,40 @@ The web interface will automatically open in your browser at:
 
 ---
 
-## Project Structure
+---
+
+## Deploy to Cloud for 24/7 Access (Any Device, Anywhere)
+
+Because this app uses Python and FFmpeg on the backend, it cannot run on static-only hosting like GitHub Pages. Instead, you can host your repository on GitHub and deploy it for free using:
+
+### Option A: Render (Recommended - Free)
+1. Push your repository to GitHub (see instructions below).
+2. Go to [render.com](https://render.com) and sign in with GitHub.
+3. Click **New +** -> **Web Service**.
+4. Select your `downloader` repository.
+5. Render will detect the `Dockerfile` automatically:
+   - Environment: **Docker**
+   - Plan: **Free**
+6. Click **Create Web Service**. You will get a live public URL (e.g. `https://omnidownloader.onrender.com`) that works on any phone, tablet, or PC worldwide!
+
+### Option B: Railway or Koyeb
+- Works seamlessly by selecting **Deploy from GitHub repo** using the included `Dockerfile`.
+
+---
+
+## Pushing to GitHub
+
+Run these commands in PowerShell or Command Prompt:
+
+```powershell
+# 1. Add your GitHub remote repository (replace with your repo URL)
+git remote add origin https://github.com/udaykumar093986/downloader.git
+
+# 2. Push to GitHub
+git branch -M main
+git push -u origin main
+```
+
 
 ```
 downloader/
