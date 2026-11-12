@@ -44,14 +44,14 @@ def main():
     print("   Open the Mobile link in your phone's browser (Chrome/Safari)")
     print("   (Ensure PC and Phone are connected to the same Wi-Fi)")
     print("   Press CTRL+C to quit")
-    print("   Press CTRL+C to quit")
     print("=" * 65)
 
-    # Launch browser automatically on PC
-    if "--no-browser" not in sys.argv:
+    is_production = os.environ.get("RENDER") or os.environ.get("PORT") and "--no-browser" in sys.argv
+    # Launch browser automatically on PC when running locally
+    if "--no-browser" not in sys.argv and not os.environ.get("RENDER"):
         threading.Thread(target=open_browser_delayed, args=(local_url,), daemon=True).start()
 
-    uvicorn.run("app.main:app", host=host, port=port, reload=True, log_level="info")
+    uvicorn.run("app.main:app", host=host, port=port, reload=not is_production, log_level="info")
 
 if __name__ == "__main__":
     main()
