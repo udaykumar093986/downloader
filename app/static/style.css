@@ -1,8 +1,36 @@
 /* Custom styles and overrides */
 
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* Safe areas for iPhone notch & home bar */
+header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+footer {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* Fast touch responsiveness */
+button, a, input, select {
+  touch-action: manipulation;
+}
+
+/* Ensure no iOS auto-zoom on input focus */
+@media screen and (max-width: 768px) {
+  input[type="url"], input[type="text"] {
+    font-size: 16px !important;
+  }
+}
+
 .tab-btn {
   color: #94a3b8;
   background: transparent;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .tab-btn.active {
@@ -13,12 +41,19 @@
 
 .format-card {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.format-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(99, 102, 241, 0.5);
-  box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.15);
+.format-card:active {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) {
+  .format-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(99, 102, 241, 0.5);
+    box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.15);
+  }
 }
 
 /* Custom subtle scrollbar */
@@ -50,3 +85,4 @@
 .animate-spin-fast {
   animation: spin 0.7s linear infinite;
 }
+
