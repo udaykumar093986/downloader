@@ -60,6 +60,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const mobileUrlDisplay = document.getElementById('mobileUrlDisplay');
   const copyMobileUrlBtn = document.getElementById('copyMobileUrlBtn');
 
+  // Preview & Privacy Elements
+  const hidePreviewCheckbox = document.getElementById('hidePreviewCheckbox');
+  const thumbnailOverlay = document.getElementById('thumbnailOverlay');
+  const toggleThumbnailBtn = document.getElementById('toggleThumbnailBtn');
+  const toggleThumbnailIcon = document.getElementById('toggleThumbnailIcon');
+  const unhideBtn = document.getElementById('unhideBtn');
+
   let qrCodeInstance = null;
   let cachedMobileUrl = '';
 
@@ -120,12 +127,81 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Manage Preview Visibility & Discrete Mode
+  let isPreviewHidden = localStorage.getItem('omni_hide_preview') === 'true';
+  if (hidePreviewCheckbox) {
+    hidePreviewCheckbox.checked = isPreviewHidden;
+    hidePreviewCheckbox.addEventListener('change', () => {
+      isPreviewHidden = hidePreviewCheckbox.checked;
+      localStorage.setItem('omni_hide_preview', isPreviewHidden);
+      applyPreviewVisibility(isPreviewHidden);
+    });
+  }
+
+  function applyPreviewVisibility(hidden) {
+    if (!thumbnailOverlay) return;
+    if (hidden) {
+      thumbnailOverlay.classList.remove('hidden');
+      mediaThumbnail.classList.add('blur-lg', 'scale-105', 'opacity-30');
+      if (toggleThumbnailIcon) {
+        toggleThumbnailIcon.setAttribute('data-lucide', 'eye');
+      }
+      if (toggleThumbnailBtn) {
+        toggleThumbnailBtn.setAttribute('title', 'Show preview');
+      }
+    } else {
+      thumbnailOverlay.classList.add('hidden');
+      mediaThumbnail.classList.remove('blur-lg', 'scale-105', 'opacity-30');
+      if (toggleThumbnailIcon) {
+        toggleThumbnailIcon.setAttribute('data-lucide', 'eye-off');
+      }
+      if (toggleThumbnailBtn) {
+        toggleThumbnailBtn.setAttribute('title', 'Hide preview');
+      }
+    }
+    lucide.createIcons();
+  }
+
+  if (toggleThumbnailBtn) {
+    toggleThumbnailBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const currentlyHidden = !thumbnailOverlay.classList.contains('hidden');
+      applyPreviewVisibility(!currentlyHidden);
+    });
+  }
+
+  if (unhideBtn) {
+    unhideBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyPreviewVisibility(false);
+    });
+  }
+
+  function resetPreview() {
+    mediaCard.classList.add('hidden');
+    progressSection.classList.add('hidden');
+    completedAlert.classList.add('hidden');
+    hideError();
+  }
+
+  // Hide previous preview immediately once a link is pasted or modified
+  urlInput.addEventListener('input', () => {
+    if (!mediaCard.classList.contains('hidden')) {
+      resetPreview();
+    }
+  });
+
+  urlInput.addEventListener('paste', () => {
+    setTimeout(resetPreview, 0);
+  });
+
   // Paste from clipboard helper
   pasteBtn.addEventListener('click', async () => {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
         urlInput.value = text.trim();
+        resetPreview();
         urlInput.focus();
       }
     } catch (err) {
@@ -234,6 +310,8 @@ document.addEventListener('DOMContentLoaded', () => {
       mediaThumbnail.src = '';
       mediaThumbnail.style.display = 'none';
     }
+
+    applyPreviewVisibility(isPreviewHidden);
 
     // Render Video Formats
     videoFormatsContainer.innerHTML = '';
