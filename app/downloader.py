@@ -8,6 +8,12 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 import yt_dlp
 
+try:
+    from yt_dlp.networking.impersonate import ImpersonateTarget
+    CHROME_TARGET = ImpersonateTarget.from_str("chrome")
+except Exception:
+    CHROME_TARGET = None
+
 from app.models import (
     VideoInfoResponse,
     FormatOption,
@@ -94,7 +100,14 @@ def get_ydl_base_opts(proxy: Optional[str] = None) -> dict:
         "no_color": True,
         "socket_timeout": 30,
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "web_creator", "mweb"]
+            }
+        },
     }
+    if CHROME_TARGET:
+        opts["impersonate"] = CHROME_TARGET
     if proxy and proxy.strip():
         opts["proxy"] = proxy.strip()
     return opts
