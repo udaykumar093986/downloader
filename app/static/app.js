@@ -67,6 +67,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleThumbnailIcon = document.getElementById('toggleThumbnailIcon');
   const unhideBtn = document.getElementById('unhideBtn');
 
+  // URL Password Masking Elements
+  const toggleUrlMaskBtn = document.getElementById('toggleUrlMaskBtn');
+  const urlMaskIcon = document.getElementById('urlMaskIcon');
+  const maskUrlCheckbox = document.getElementById('maskUrlCheckbox');
+
+  // Website Passcode Lock Elements
+  const lockScreenModal = document.getElementById('lockScreenModal');
+  const unlockForm = document.getElementById('unlockForm');
+  const unlockPasscodeInput = document.getElementById('unlockPasscodeInput');
+  const unlockErrorMsg = document.getElementById('unlockErrorMsg');
+
+  const lockSettingsBtn = document.getElementById('lockSettingsBtn');
+  const lockSettingsLabel = document.getElementById('lockSettingsLabel');
+  const lockSettingsIcon = document.getElementById('lockSettingsIcon');
+  const passcodeConfigModal = document.getElementById('passcodeConfigModal');
+  const closePasscodeModalBtn = document.getElementById('closePasscodeModalBtn');
+  const newPasscodeInput = document.getElementById('newPasscodeInput');
+  const passcodeStatusNote = document.getElementById('passcodeStatusNote');
+  const savePasscodeBtn = document.getElementById('savePasscodeBtn');
+  const removePasscodeBtn = document.getElementById('removePasscodeBtn');
+
   let qrCodeInstance = null;
   let cachedMobileUrl = '';
 
@@ -126,6 +147,140 @@ document.addEventListener('DOMContentLoaded', () => {
       proxyPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
   }
+
+  // Manage URL Password-Masking Mode (••••••)
+  let isUrlMasked = localStorage.getItem('omni_mask_url') !== 'false'; // default to true
+
+  function applyUrlMask(masked) {
+    isUrlMasked = masked;
+    urlInput.type = masked ? 'password' : 'text';
+    if (maskUrlCheckbox) maskUrlCheckbox.checked = masked;
+    if (urlMaskIcon) {
+      urlMaskIcon.setAttribute('data-lucide', masked ? 'eye' : 'eye-off');
+    }
+    if (toggleUrlMaskBtn) {
+      toggleUrlMaskBtn.setAttribute('title', masked ? 'Show URL (Reveal)' : 'Mask URL as Password');
+    }
+    lucide.createIcons();
+  }
+
+  applyUrlMask(isUrlMasked);
+
+  if (toggleUrlMaskBtn) {
+    toggleUrlMaskBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      applyUrlMask(!isUrlMasked);
+    });
+  }
+
+  if (maskUrlCheckbox) {
+    maskUrlCheckbox.addEventListener('change', () => {
+      const checked = maskUrlCheckbox.checked;
+      localStorage.setItem('omni_mask_url', checked ? 'true' : 'false');
+      applyUrlMask(checked);
+    });
+  }
+
+  // Manage Website Passcode / PIN Protection
+  function checkWebsitePasscode() {
+    const savedCode = localStorage.getItem('omni_passcode');
+    if (savedCode) {
+      const unlocked = sessionStorage.getItem('omni_unlocked') === 'true';
+      if (!unlocked) {
+        lockScreenModal.classList.remove('hidden');
+        setTimeout(() => unlockPasscodeInput.focus(), 150);
+      } else {
+        lockScreenModal.classList.add('hidden');
+      }
+      if (lockSettingsLabel) lockSettingsLabel.textContent = 'PIN Active';
+      if (lockSettingsIcon) lockSettingsIcon.classList.add('text-emerald-400');
+    } else {
+      lockScreenModal.classList.add('hidden');
+      if (lockSettingsLabel) lockSettingsLabel.textContent = 'Passcode';
+      if (lockSettingsIcon) lockSettingsIcon.classList.remove('text-emerald-400');
+    }
+  }
+
+  if (unlockForm) {
+    unlockForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const entered = unlockPasscodeInput.value.trim();
+      const savedCode = localStorage.getItem('omni_passcode');
+      if (entered === savedCode) {
+        sessionStorage.setItem('omni_unlocked', 'true');
+        lockScreenModal.classList.add('hidden');
+        unlockErrorMsg.classList.add('hidden');
+        unlockPasscodeInput.value = '';
+      } else {
+        unlockErrorMsg.textContent = 'Incorrect passcode. Please try again.';
+        unlockErrorMsg.classList.remove('hidden');
+        unlockPasscodeInput.focus();
+        unlockPasscodeInput.select();
+      }
+    });
+  }
+
+  function updatePasscodeModalUI() {
+    const savedCode = localStorage.getItem('omni_passcode');
+    if (savedCode) {
+      passcodeStatusNote.innerHTML = '<span class="text-emerald-400 font-semibold">● Passcode currently active.</span> Anyone visiting this website must enter this code to use it.';
+      removePasscodeBtn.classList.remove('hidden');
+    } else {
+      passcodeStatusNote.textContent = 'No passcode is set. Anyone with your website link can use the downloader.';
+      removePasscodeBtn.classList.add('hidden');
+    }
+    newPasscodeInput.value = '';
+  }
+
+  if (lockSettingsBtn) {
+    lockSettingsBtn.addEventListener('click', () => {
+      updatePasscodeModalUI();
+      passcodeConfigModal.classList.remove('hidden');
+      setTimeout(() => newPasscodeInput.focus(), 100);
+    });
+  }
+
+  if (closePasscodeModalBtn) {
+    closePasscodeModalBtn.addEventListener('click', () => {
+      passcodeConfigModal.classList.add('hidden');
+    });
+  }
+
+  if (passcodeConfigModal) {
+    passcodeConfigModal.addEventListener('click', (e) => {
+      if (e.target === passcodeConfigModal) {
+        passcodeConfigModal.classList.add('hidden');
+      }
+    });
+  }
+
+  if (savePasscodeBtn) {
+    savePasscodeBtn.addEventListener('click', () => {
+      const code = newPasscodeInput.value.trim();
+      if (!code) {
+        alert('Please enter a passcode or PIN.');
+        return;
+      }
+      localStorage.setItem('omni_passcode', code);
+      sessionStorage.setItem('omni_unlocked', 'true');
+      passcodeConfigModal.classList.add('hidden');
+      checkWebsitePasscode();
+      alert('Passcode set successfully! This website will now require this code to enter.');
+    });
+  }
+
+  if (removePasscodeBtn) {
+    removePasscodeBtn.addEventListener('click', () => {
+      if (confirm('Remove passcode protection? Anyone will be able to access the site without entering a PIN.')) {
+        localStorage.removeItem('omni_passcode');
+        sessionStorage.removeItem('omni_unlocked');
+        passcodeConfigModal.classList.add('hidden');
+        checkWebsitePasscode();
+      }
+    });
+  }
+
+  checkWebsitePasscode();
 
   // Manage Preview Visibility & Discrete Mode
   let isPreviewHidden = localStorage.getItem('omni_hide_preview') === 'true';
@@ -225,7 +380,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function showError(msg) {
-    errorMessage.textContent = msg;
+    let displayMsg = msg;
+    if (isUrlMasked && typeof displayMsg === 'string') {
+      displayMsg = displayMsg.replace(/https?:\/\/[^\s"'<>]+/gi, '••••••••••••');
+    }
+    errorMessage.textContent = displayMsg;
     errorAlert.classList.remove('hidden');
     if (
       msg.includes('ISP') ||
