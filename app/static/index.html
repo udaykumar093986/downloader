@@ -293,10 +293,14 @@
         </div>
 
         <div class="flex-1 space-y-2 min-w-0">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between flex-wrap gap-2">
             <span id="mediaPlatform" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
               Platform
             </span>
+            <button id="toggleWebviewBtn" type="button" class="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-medium flex items-center gap-1.5 transition-colors">
+              <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+              <span id="webviewBtnText">Show Webpage</span>
+            </button>
           </div>
           <h2 id="mediaTitle" class="text-base sm:text-lg font-bold text-white line-clamp-2 leading-snug">
             Video Title
@@ -305,6 +309,34 @@
             <i data-lucide="user" class="w-3.5 h-3.5 text-slate-500"></i>
             <span>Creator Name</span>
           </p>
+        </div>
+      </div>
+
+      <!-- In-App Webpage Viewer Container (Collapsible) -->
+      <div id="webviewContainer" class="hidden border border-slate-800 rounded-xl overflow-hidden bg-slate-950 flex flex-col shadow-inner">
+        <div class="px-3 py-2 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+            <span class="font-mono text-[11px] text-slate-300 truncate" id="webviewUrlLabel">Webpage Preview</span>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button id="reloadWebviewBtn" type="button" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors" title="Reload Webpage">
+              <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+            </button>
+            <a id="externalWebviewLink" href="#" target="_blank" rel="noopener noreferrer" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors" title="Open in New Tab">
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            </a>
+            <button id="closeWebviewBtn" type="button" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors" title="Close Webpage">
+              <i data-lucide="x" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+        <div class="relative w-full h-80 sm:h-96 bg-slate-950">
+          <div id="webviewLoading" class="absolute inset-0 flex items-center justify-center bg-slate-950/80 text-xs text-slate-400 gap-2">
+            <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-400"></i>
+            <span>Loading webpage preview...</span>
+          </div>
+          <iframe id="webviewIframe" class="w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="lazy"></iframe>
         </div>
       </div>
 

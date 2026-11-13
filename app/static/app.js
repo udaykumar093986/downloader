@@ -88,6 +88,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const savePasscodeBtn = document.getElementById('savePasscodeBtn');
   const removePasscodeBtn = document.getElementById('removePasscodeBtn');
 
+  // In-App Webpage Viewer Elements
+  const toggleWebviewBtn = document.getElementById('toggleWebviewBtn');
+  const webviewBtnText = document.getElementById('webviewBtnText');
+  const webviewContainer = document.getElementById('webviewContainer');
+  const webviewUrlLabel = document.getElementById('webviewUrlLabel');
+  const reloadWebviewBtn = document.getElementById('reloadWebviewBtn');
+  const externalWebviewLink = document.getElementById('externalWebviewLink');
+  const closeWebviewBtn = document.getElementById('closeWebviewBtn');
+  const webviewLoading = document.getElementById('webviewLoading');
+  const webviewIframe = document.getElementById('webviewIframe');
+
   let qrCodeInstance = null;
   let cachedMobileUrl = '';
 
@@ -336,7 +347,58 @@ document.addEventListener('DOMContentLoaded', () => {
     mediaCard.classList.add('hidden');
     progressSection.classList.add('hidden');
     completedAlert.classList.add('hidden');
+    hideWebview();
     hideError();
+  }
+
+  function hideWebview() {
+    if (!webviewContainer) return;
+    webviewContainer.classList.add('hidden');
+    if (webviewBtnText) webviewBtnText.textContent = 'Show Webpage';
+    if (webviewIframe) webviewIframe.src = 'about:blank';
+  }
+
+  function loadWebview(url) {
+    if (!url) return;
+    webviewContainer.classList.remove('hidden');
+    if (webviewBtnText) webviewBtnText.textContent = 'Hide Webpage';
+    if (externalWebviewLink) externalWebviewLink.href = url;
+    if (webviewUrlLabel) {
+      webviewUrlLabel.textContent = isUrlMasked ? '••••••••••••••••••••••••' : url;
+    }
+    if (webviewLoading) webviewLoading.classList.remove('hidden');
+    if (webviewIframe) {
+      webviewIframe.src = `/api/proxy-page?url=${encodeURIComponent(url)}`;
+      webviewIframe.onload = () => {
+        if (webviewLoading) webviewLoading.classList.add('hidden');
+      };
+    }
+    webviewContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  if (toggleWebviewBtn) {
+    toggleWebviewBtn.addEventListener('click', () => {
+      const isHidden = webviewContainer.classList.contains('hidden');
+      if (isHidden) {
+        if (currentVideoInfo && currentVideoInfo.webpage_url) {
+          loadWebview(currentVideoInfo.webpage_url);
+        }
+      } else {
+        hideWebview();
+      }
+    });
+  }
+
+  if (closeWebviewBtn) {
+    closeWebviewBtn.addEventListener('click', hideWebview);
+  }
+
+  if (reloadWebviewBtn) {
+    reloadWebviewBtn.addEventListener('click', () => {
+      if (currentVideoInfo && currentVideoInfo.webpage_url) {
+        loadWebview(currentVideoInfo.webpage_url);
+      }
+    });
   }
 
   // Hide previous preview immediately once a link is pasted or modified

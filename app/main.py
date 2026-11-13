@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 
+import httpx
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, Response, HTMLResponse
 
 from app.models import InfoRequest, DownloadRequest, VideoInfoResponse, DownloadProgress
 from app.downloader import (
@@ -187,6 +188,69 @@ async def open_downloads_folder():
         return {"success": True, "path": folder_str}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/proxy-page")
+async def proxy_web_page(url: str):
+    """Safely proxies a webpage to render inside an iframe by stripping restrictive X-Frame-Options headers."""
+    if not url or not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(status_code=400, detail="A valid http/https URL is required.")
+
+    req_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, verify=False) as client:
+            resp = await client.get(url, headers=req_headers)
+            content_type = resp.headers.get("content-type", "").lower()
+
+            if "text/html" in content_type:
+                html = resp.text
+                final_url = str(resp.url)
+                # Inject a base tag so relative links, images, and styles load properly from the original domain
+                base_tag = f'<base href="{final_url}">'
+                if "<head>" in html:
+                    html = html.replace("<head>", f"<head>{base_tag}", 1)
+                elif "<HEAD>" in html:
+                    html = html.replace("<HEAD>", f"<HEAD>{base_tag}", 1)
+                else:
+                    html = f"{base_tag}{html}"
+
+                return HTMLResponse(
+                    content=html,
+                    headers={
+                        "X-Frame-Options": "ALLOWALL",
+                        "Content-Security-Policy": "frame-ancestors *",
+                    },
+                )
+            else:
+                return Response(
+                    content=resp.content,
+                    media_type=content_type or "text/plain",
+                    headers={"X-Frame-Options": "ALLOWALL"},
+                )
+    except Exception as e:
+        error_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #94a3b8; padding: 2rem; text-align: center; }}
+            .btn {{ display: inline-block; margin-top: 1rem; padding: 0.5rem 1rem; background: #4f46e5; color: #fff; text-decoration: none; border-radius: 8px; font-size: 13px; }}
+          </style>
+        </head>
+        <body>
+          <h3 style="color:#f87171; margin-bottom: 0.5rem;">Webpage Preview Notice</h3>
+          <p style="font-size: 13px;">This website restricts embedded previews ({str(e)}).</p>
+          <a href="{url}" target="_blank" rel="noopener noreferrer" class="btn">Open Webpage in New Tab</a>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=error_html, status_code=200)
 
 
 # Static files & SPA root
