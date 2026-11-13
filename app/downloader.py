@@ -53,6 +53,15 @@ def format_duration(seconds: Optional[int]) -> Optional[str]:
     return f"{m:02d}:{s:02d}"
 
 
+def normalize_url(url: str) -> str:
+    if not url:
+        return ""
+    u = url.strip()
+    if not u.startswith(("http://", "https://")):
+        u = "https://" + u
+    return u
+
+
 def clean_error_message(err: Any) -> str:
     raw = str(err)
     # Strip ANSI escape sequences and control characters
@@ -60,17 +69,22 @@ def clean_error_message(err: Any) -> str:
     text = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", text)
     text = re.sub(r"^(?:ERROR:\s*)+", "", text.strip())
 
-    # Detect network / ISP RST blocks
+    # Detect network / ISP RST blocks (WinError 10054 / curl error 35)
     if (
         "10054" in text
         or "forcibly closed" in text
         or "ConnectionResetError" in text
         or "Connection reset" in text
+        or "Connection was reset" in text
+        or "curl: (35)" in text
+        or "Recv failure" in text
+        or "SSL/TLS connection failed" in text
     ):
         return (
-            "Connection was forcibly closed by your local ISP or firewall (WinError 10054). "
-            "This domain is blocked or filtered on your local network. "
-            "Solution: Turn on a VPN (e.g. Cloudflare 1.1.1.1 WARP, ProtonVPN) or configure an HTTP/SOCKS5 Proxy in the app's Proxy Settings."
+            "Connection was reset by your local ISP / network firewall (curl error 35: Connection was reset). "
+            "This domain is filtered or blocked by your internet provider. "
+            "Solution: 1) Open your live Cloud link (https://omnidownloader-x2mk.onrender.com) which has zero ISP blocks, "
+            "or 2) Turn on a VPN (e.g. Cloudflare 1.1.1.1 WARP, ProtonVPN) or configure a proxy in Proxy Settings."
         )
     if "10060" in text or "timed out" in text.lower():
         return (
@@ -83,6 +97,11 @@ def clean_error_message(err: Any) -> str:
         return (
             "Access Forbidden (HTTP 403). The website may require login/cookies, bot verification, "
             "or is blocking requests from this IP region."
+        )
+    if "is not a valid URL" in text or "Unsupported URL" in text:
+        return (
+            "Please paste the direct link to a specific video page (e.g. containing /view_video.php?viewkey=... or /watch?v=...), "
+            "rather than a general homepage or category page."
         )
     if "HTTP Error 404" in text:
         return "Video not found (HTTP 404). Please verify that the link is correct and active."
@@ -114,6 +133,7 @@ def get_ydl_base_opts(proxy: Optional[str] = None) -> dict:
 
 
 def get_video_info(url: str, proxy: Optional[str] = None) -> VideoInfoResponse:
+    url = normalize_url(url)
     ydl_opts = get_ydl_base_opts(proxy)
     ydl_opts.update({
         "extract_flat": "in_playlist",
@@ -280,6 +300,7 @@ def execute_download(task_id: str, request: DownloadRequest):
     if not progress:
         return
 
+    request.url = normalize_url(request.url)
     progress.status = "downloading"
     final_filepath: Optional[Path] = None
 
