@@ -710,6 +710,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.removeChild(tempLink);
           }
 
+          // Record in user's browser session history
+          if (data.filename) {
+            saveToClientHistory(data.filename);
+          }
+
           sse.close();
           activeEventSource = null;
           loadHistory();
@@ -732,16 +737,47 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // Load Download History
+  function saveToClientHistory(filename) {
+    if (!filename) return;
+    try {
+      let list = JSON.parse(localStorage.getItem('omni_user_files') || '[]');
+      if (!list.includes(filename)) {
+        list.unshift(filename);
+        if (list.length > 50) list = list.slice(0, 50);
+        localStorage.setItem('omni_user_files', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.warn('Could not save to client history:', e);
+    }
+  }
+
+  // Load Download History (Scoped to the current user's session)
   async function loadHistory() {
     try {
-      const resp = await fetch('/api/history');
+      let myFiles = [];
+      try {
+        myFiles = JSON.parse(localStorage.getItem('omni_user_files') || '[]');
+      } catch (e) {}
+
+      let url = '/api/history';
+      if (myFiles.length > 0) {
+        url += `?filenames=${encodeURIComponent(myFiles.join(','))}`;
+      }
+
+      const resp = await fetch(url);
       const files = await resp.json();
+
+      // Clean up localStorage for files that no longer exist on server (expired/auto-deleted)
+      if (Array.isArray(files) && myFiles.length > 0) {
+        const existingNames = files.map((f) => f.filename);
+        const filtered = myFiles.filter((fn) => existingNames.includes(fn));
+        localStorage.setItem('omni_user_files', JSON.stringify(filtered));
+      }
 
       if (!files || files.length === 0) {
         historyList.innerHTML = `
           <div class="text-center py-6 text-slate-500 text-xs">
-            No downloaded files yet. Paste a link above to get started!
+            No active downloads. Downloaded media will appear here for 30 minutes.
           </div>
         `;
         historyBadge.classList.add('hidden');
@@ -786,7 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </a>
             <button
               class="delete-btn p-2 sm:p-1.5 rounded-lg hover:bg-red-500/20 active:bg-red-500/30 text-slate-400 hover:text-red-400 transition-colors"
-              title="Delete from disk"
+              title="Delete from server"
             >
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
@@ -798,6 +834,11 @@ document.addEventListener('DOMContentLoaded', () => {
             await fetch(`/api/history/${encodeURIComponent(file.filename)}`, {
               method: 'DELETE',
             });
+            try {
+              let stored = JSON.parse(localStorage.getItem('omni_user_files') || '[]');
+              stored = stored.filter((fn) => fn !== file.filename);
+              localStorage.setItem('omni_user_files', JSON.stringify(stored));
+            } catch (e) {}
             loadHistory();
           }
         });
@@ -888,6 +929,38 @@ document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
           }, 1500);
         }
+      }
+    });
+  }
+
+  // Terms of Service & DMCA Disclaimer Modal
+  const openLegalModalBtn = document.getElementById('openLegalModalBtn');
+  const legalModal = document.getElementById('legalModal');
+  const closeLegalModalBtn = document.getElementById('closeLegalModalBtn');
+  const acceptLegalBtn = document.getElementById('acceptLegalBtn');
+
+  if (openLegalModalBtn) {
+    openLegalModalBtn.addEventListener('click', () => {
+      if (legalModal) legalModal.classList.remove('hidden');
+    });
+  }
+
+  if (closeLegalModalBtn) {
+    closeLegalModalBtn.addEventListener('click', () => {
+      if (legalModal) legalModal.classList.add('hidden');
+    });
+  }
+
+  if (acceptLegalBtn) {
+    acceptLegalBtn.addEventListener('click', () => {
+      if (legalModal) legalModal.classList.add('hidden');
+    });
+  }
+
+  if (legalModal) {
+    legalModal.addEventListener('click', (e) => {
+      if (e.target === legalModal) {
+        legalModal.classList.add('hidden');
       }
     });
   }

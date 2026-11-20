@@ -487,3 +487,46 @@ def delete_downloaded_file(filename: str) -> bool:
         target.unlink()
         return True
     return False
+
+
+def cleanup_old_downloads(max_age_seconds: int = 1800) -> int:
+    """Removes downloaded files older than max_age_seconds (default 30 mins) to protect server disk space."""
+    now = time.time()
+    removed = 0
+    if not DOWNLOADS_DIR.exists():
+        return 0
+
+    for item in DOWNLOADS_DIR.iterdir():
+        if item.is_file() and item.name != ".gitkeep":
+            try:
+                age = now - item.stat().st_mtime
+                if age > max_age_seconds or (item.name.endswith((".part", ".ytdl")) and age > 600):
+                    item.unlink(missing_ok=True)
+                    removed += 1
+            except Exception as e:
+                logger.warning(f"Error cleaning file {item.name}: {e}")
+    return removed
+
+
+def verify_files_status(filenames: List[str]) -> List[dict]:
+    """Returns metadata only for the specific filenames requested by the client that still exist."""
+    results = []
+    for fn in filenames:
+        safe_name = Path(fn).name
+        target = DOWNLOADS_DIR / safe_name
+        if target.exists() and target.is_file() and not target.name.endswith((".part", ".ytdl")):
+            stat = target.stat()
+            ext = target.suffix.lower().lstrip(".")
+            file_type = "audio" if ext in ["mp3", "m4a", "wav", "flac", "ogg", "aac"] else "video"
+            results.append({
+                "filename": target.name,
+                "size_bytes": stat.st_size,
+                "size_str": format_bytes(stat.st_size),
+                "created_at": stat.st_mtime,
+                "created_str": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+                "type": file_type,
+                "ext": ext,
+                "download_url": f"/api/files/{target.name}",
+            })
+    return results
+

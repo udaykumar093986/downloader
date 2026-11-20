@@ -2,9 +2,12 @@ import os
 import json
 import socket
 import asyncio
-import subprocess
+import logging
+import ipaddress
+import urllib.parse
 from pathlib import Path
 from typing import Optional
+from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
@@ -23,15 +26,62 @@ from app.downloader import (
     DOWNLOADS_DIR,
     list_downloaded_files,
     delete_downloaded_file,
+    cleanup_old_downloads,
+    verify_files_status,
 )
 
+logger = logging.getLogger("downloader")
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
+
+def is_safe_proxy_url(url_str: str) -> bool:
+    """Validate that the URL does not point to internal, private, loopback, or metadata services."""
+    try:
+        parsed = urllib.parse.urlparse(url_str)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        if hostname.lower() in ("localhost", "127.0.0.1", "::1"):
+            return False
+        if hostname.endswith((".local", ".internal", ".localhost", ".corp")):
+            return False
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+        except ValueError:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Background periodic cleanup of downloaded files (every 5 minutes, keeps files for 30 minutes)
+    async def cleanup_loop():
+        while True:
+            try:
+                await asyncio.sleep(300)
+                cleanup_old_downloads(max_age_seconds=1800)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in cleanup loop: {e}")
+
+    task = asyncio.create_task(cleanup_loop())
+    yield
+    task.cancel()
+
+
 app = FastAPI(
-    title="Universal Online Video Downloader",
-    description="High-performance online video & audio downloader powered by yt-dlp & FFmpeg",
+    title="OmniDownloader",
+    description="High-performance universal online video & audio downloader",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware for development
@@ -165,8 +215,16 @@ async def download_file(filename: str):
 
 
 @app.get("/api/history")
-async def get_history():
-    return list_downloaded_files()
+async def get_history(filenames: Optional[str] = None):
+    # If filenames are passed from client session, return status only for those
+    if filenames:
+        requested = [f.strip() for f in filenames.split(",") if f.strip()]
+        return verify_files_status(requested)
+    # If running locally on private PC, allow full list
+    if not os.environ.get("RENDER"):
+        return list_downloaded_files()
+    # In public cloud mode without query, return empty list to protect user privacy
+    return []
 
 
 @app.delete("/api/history/{filename}")
@@ -179,12 +237,15 @@ async def delete_file(filename: str):
 
 @app.post("/api/open-folder")
 async def open_downloads_folder():
+    # Only allow on local machines, never on public cloud deployments
+    if os.environ.get("RENDER") or os.name != "nt":
+        raise HTTPException(
+            status_code=403,
+            detail="Opening local folders is only supported when running the app locally on your PC.",
+        )
     try:
         folder_str = str(DOWNLOADS_DIR)
-        if os.name == "nt":
-            os.startfile(folder_str)
-        else:
-            subprocess.Popen(["xdg-open", folder_str])
+        os.startfile(folder_str)
         return {"success": True, "path": folder_str}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -193,8 +254,8 @@ async def open_downloads_folder():
 @app.get("/api/proxy-page")
 async def proxy_web_page(url: str):
     """Safely proxies a webpage to render inside an iframe by stripping restrictive X-Frame-Options headers."""
-    if not url or not (url.startswith("http://") or url.startswith("https://")):
-        raise HTTPException(status_code=400, detail="A valid http/https URL is required.")
+    if not is_safe_proxy_url(url):
+        raise HTTPException(status_code=400, detail="Invalid, unsupported, or restricted destination URL.")
 
     req_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
@@ -255,6 +316,14 @@ async def proxy_web_page(url: str):
 
 # Static files & SPA root
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    fav = STATIC_DIR / "favicon.svg"
+    if fav.exists():
+        return FileResponse(fav, media_type="image/svg+xml")
+    raise HTTPException(status_code=404)
 
 
 @app.get("/")
